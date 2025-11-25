@@ -24,11 +24,35 @@ from sklearn.metrics import (
 # 1. CARGAR DATASET
 # ===============================================
 
-file_path = Path(__file__).parent.parent / "datasets" / "accidentes_causa_conductor.csv"
-df = pd.read_csv(file_path)
+# ===============================================
+# 1. CARGAR DATASET (VARIOS CSV)
+# ===============================================
 
+from pathlib import Path
+import pandas as pd
+
+# Carpeta donde están tus CSV
+carpeta = Path(__file__).parent.parent / "datasets"
+
+# Obtener todos los CSV
+csv_files = list(carpeta.glob("*.csv"))
+
+if len(csv_files) == 0:
+    print("❌ No se encontraron archivos CSV en:", carpeta)
+    exit()
+
+print("CSV encontrados:")
+for f in csv_files:
+    print(" -", f.name)
+
+# Unir todos los CSV
+df = pd.concat((pd.read_csv(f) for f in csv_files), ignore_index=True)
+
+print("\n✔ Dataset combinado correctamente.")
+print("Total de filas:", len(df))
 print("Columnas del dataset:")
 print(df.columns)
+
 
 # ===============================================
 # 2. DEFINIR TARGET
@@ -141,3 +165,5 @@ sns.barplot(x='importance', y='feature', data=feature_importance_df)
 plt.title("Importancia de Variables – Random Forest")
 plt.tight_layout()
 plt.show()
+
+
