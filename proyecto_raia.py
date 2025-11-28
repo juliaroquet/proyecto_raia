@@ -20,9 +20,7 @@ from sklearn.metrics import (
     ConfusionMatrixDisplay
 )
 
-# ===============================================
-# 1. CARGAR DATASET
-# ===============================================
+
 
 # ===============================================
 # 1. CARGAR DATASET (VARIOS CSV)
