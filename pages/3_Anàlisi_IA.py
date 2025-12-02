@@ -58,7 +58,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Títol i subtítol ---
-st.markdown('<h1 class="analyst-title">🤖 Analista de Dades de Trànsit 📊</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="analyst-title">🤖 Analista de Dades de Trànsit</h1>', unsafe_allow_html=True)
 st.markdown('<p class="analyst-subtitle">Fes preguntes concretes sobre els accidents de trànsit a Barcelona basades en les dades que has pujat.</p>', unsafe_allow_html=True)
 
 

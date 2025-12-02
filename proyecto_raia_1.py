@@ -124,7 +124,7 @@ anys_seleccionats = df_total['Nk_Any'].unique().tolist() # Default: tots els any
 df_filtrat = df_total.copy()
 
 if 'Nk_Any' in df_total.columns and not df_total.empty:
-    st.sidebar.header("Opcions ⚙️")
+    st.sidebar.header("Opcions")
     
     # Utilitzem st.sidebar.expander per al desplegable 'Filtres:'
     with st.sidebar.expander("Filtres:", expanded=True):
@@ -145,7 +145,7 @@ if 'Nk_Any' in df_total.columns and not df_total.empty:
 
 # --- Contingut de la Pàgina Principal ---
 
-st.markdown('<h1 class="main-header">🚦 Dashboard d\'Accidents de Trànsit a Barcelona 🏙️</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header"> Dashboard d\'Accidents de Trànsit a Barcelona </h1>', unsafe_allow_html=True)
 
 if df_total.empty:
     st.warning("No s'ha pogut carregar cap dada. Puja fitxers a la pàgina '1 Distribució Causes'.")
