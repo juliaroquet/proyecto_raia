@@ -164,4 +164,230 @@ plt.title("Importancia de Variables – Random Forest")
 plt.tight_layout()
 plt.show()
 
+# ==========================================================
+# PROYECTO ML – PREDICCIÓN DE CAUSA SEGÚN NOMBRE DE CALLE
+# MODELO + INPUT + PROBABILIDADES + GRIDSEARCH OPCIONAL
+# ==========================================================
 
+import pandas as pd
+from pathlib import Path
+
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import accuracy_score, classification_report
+
+
+# ==========================================================
+# CONFIGURACIÓN
+# ==========================================================
+
+TARGET = "Descripcio_causa_mediata"
+COLUMNA_CALLE = "Nom_carrer"   # Ajustar si tu dataset usa otra columna
+
+
+# ==========================================================
+# 1. CARGAR CSVs
+# ==========================================================
+
+def cargar_csvs():
+    carpeta = Path(__file__).parent.parent / "datasets"
+    csv_files = list(carpeta.glob("*.csv"))
+
+    if not csv_files:
+        raise FileNotFoundError("No se encontraron CSV en /datasets")
+
+    df = pd.concat((pd.read_csv(f) for f in csv_files), ignore_index=True)
+    return df
+
+
+# ==========================================================
+# 2. IMPUTAR Y CODIFICAR
+# ==========================================================
+
+def preparar_dataset(df):
+    df = df.fillna("NA")
+
+    codificadores = {}
+    df_encoded = df.copy()
+
+    for col in df.columns:
+        if df[col].dtype == "object":
+            df_encoded[col] = df[col].astype("category")
+            codificadores[col] = df_encoded[col].cat.categories
+            df_encoded[col] = df_encoded[col].cat.codes
+
+    X = df_encoded.drop(columns=[TARGET])
+    y = df_encoded[TARGET]
+
+    return X, y, codificadores
+
+
+# ==========================================================
+# 3. ENTRENAR RANDOM FOREST
+# ==========================================================
+
+def entrenar_random_forest(X, y):
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.25, random_state=42, stratify=y
+    )
+
+    model = RandomForestClassifier(
+        n_estimators=300, max_depth=16, random_state=42
+    )
+
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    print("\n=== MÉTRICAS RANDOM FOREST ===")
+    print("Accuracy:", accuracy_score(y_test, y_pred))
+    print(classification_report(y_test, y_pred))
+
+    return model
+
+
+# ==========================================================
+# 4. FILTRAR CALLE
+# ==========================================================
+
+def filtrar_calle(df, calle):
+    return df[df[COLUMNA_CALLE].str.contains(calle, case=False, na=False)]
+
+
+# ==========================================================
+# 5. CODIFICAR SEGÚN CODIFICADORES ORIGINALES
+# ==========================================================
+
+def codificar_df(df, codificadores):
+    df_encoded = df.copy()
+
+    for col in df.columns:
+        if col in codificadores:
+            cats = codificadores[col].tolist()
+            df_encoded[col] = df[col].apply(lambda x: cats.index(x) if x in cats else -1)
+
+    return df_encoded
+
+
+# ==========================================================
+# 6. PREDICCIÓN + PROBABILIDAD
+# ==========================================================
+
+def predecir_calle(modelo, df_calle, X_columns, codificadores):
+
+    df_encoded = codificar_df(df_calle, codificadores)
+    X_input = df_encoded[X_columns]
+
+    y_pred = modelo.predict(X_input)
+    probas = modelo.predict_proba(X_input)
+
+    etiquetas = codificadores[TARGET]
+    pred_texto = [etiquetas[p] for p in y_pred]
+
+    print("\n=== PREDICCIONES PARA LA CALLE (primeros 15) ===")
+    for i, p in enumerate(pred_texto[:15]):
+        print(f"{i+1}. {p}")
+
+    proba_media = probas.mean(axis=0)
+    proba_dict = {etiquetas[i]: round(proba_media[i] * 100, 2)
+                  for i in range(len(etiquetas))}
+
+    print("\n=== PROBABILIDAD PROMEDIO POR CLASE ===")
+    for clase, pct in proba_dict.items():
+        print(f"- {clase}: {pct}%")
+
+    causa_top = max(proba_dict, key=proba_dict.get)
+    print(f"\n🎯 Causa MÁS probable: {causa_top} ({proba_dict[causa_top]}%)")
+
+
+# ==========================================================
+# 7. GRIDSEARCH (OPCIONAL)
+# ==========================================================
+
+def ejecutar_gridsearch(X, y):
+    print("\nEjecutando GridSearchCV...")
+
+    param_grid = {
+        "n_estimators": [100, 200, 300],
+        "max_depth": [8, 12, 16, None],
+        "min_samples_split": [2, 5, 10],
+    }
+
+    grid = GridSearchCV(
+        RandomForestClassifier(random_state=42),
+        param_grid,
+        cv=5,
+        n_jobs=-1,
+        verbose=1
+    )
+
+    grid.fit(X, y)
+
+    print("\nMejores parámetros encontrados:")
+    print(grid.best_params_)
+
+    return grid.best_estimator_
+
+
+# ==========================================================
+# 8. COMPARAR VARIOS MODELOS
+# ==========================================================
+
+def comparar_modelos(X_train, X_test, y_train, y_test, X, y):
+
+    modelos = {
+        "KNN": KNeighborsClassifier(n_neighbors=5),
+        "Decision Tree": DecisionTreeClassifier(max_depth=6),
+        "Naive Bayes": GaussianNB(),
+        "Linear SVM": SVC(kernel="linear", probability=True),
+        "RBF SVM": SVC(gamma=2, C=1, probability=True),
+        "Neural Net": MLPClassifier(alpha=1, max_iter=1000),
+        "Random Forest": RandomForestClassifier(n_estimators=200, max_depth=12)
+    }
+
+    print("\n===== COMPARACION DE MODELOS =====")
+
+    for nombre, modelo in modelos.items():
+        modelo.fit(X_train, y_train)
+        acc = modelo.score(X_test, y_test)
+        cv = cross_val_score(modelo, X, y, cv=10).mean()
+
+        print(f"{nombre.ljust(15)}  Test Acc = {acc:.3f} | CV Acc = {cv:.3f}")
+
+
+# ==========================================================
+# MAIN
+# ==========================================================
+
+def main():
+
+    df = cargar_csvs()
+    print(f"✔ Dataset cargado ({len(df)} filas)")
+
+    X, y, codificadores = preparar_dataset(df)
+    modelo = entrenar_random_forest(X, y)
+
+    calle = input("\nIngresa la calle a analizar: ").strip()
+    df_calle = filtrar_calle(df, calle)
+
+    if df_calle.empty:
+        print(f"No hay registros para '{calle}'")
+        return
+
+    print(f"✔ {len(df_calle)} registros encontrados en '{calle}'")
+
+    predecir_calle(modelo, df_calle, X.columns, codificadores)
+
+    # Opción GridSearch
+    usar_grid = input("\n¿Ejecutar GridSearch? (s/n): ").lower()
+    if usar_grid == "s":
+        best_model = ejecutar_gridsearch(X, y)
+        print("Accuracy total con best model:", best_model.score(X, y))
+
+
+if __name__ == "__main__":
+    main()
