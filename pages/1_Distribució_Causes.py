@@ -64,7 +64,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-st.markdown('<h1 class="main-header">📊 Causes dels Accidents: Interacció i Distribució💖</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">📊 Causes dels Accidents: Interacció i Distribució</h1>', unsafe_allow_html=True)
 st.markdown("Selecciona l'any (o 'Tots els Anys') de manera independent per a cada mètrica per analitzar la distribució de causes, els factors del conductor i els patrons temporals.")
 
 # --- Variables Globals i Funció de Càrrega CORREGIDA ---
@@ -153,12 +153,12 @@ if dfs:
     # ----------------------------------------
     # Secció 2: Distribució de Causes (Per Any Seleccionat)
     # ----------------------------------------
-    st.header("📌 Distribució de Causes Mediate")
+    st.header("Distribució de Causes")
     
     # RESUM DE LA SECCIÓ 2
     with st.expander("ℹ️ Què veig en aquest gràfic?"):
         st.markdown("""
-            Aquest gràfic de pastís (Pie Chart) mostra el percentatge de cada **Causa Mediate** (la causa original o subjacent de l'accident) en el període seleccionat. 
+            Aquest gràfic de pastís (Pie Chart) mostra el percentatge de cada **Causa** (la causa original o subjacent de l'accident) en el període seleccionat. 
             Permet identificar ràpidament quins són els factors primaris i sistèmics que contribueixen al major nombre d'accidents.
         """)
 
@@ -177,7 +177,7 @@ if dfs:
         if not df_seccio_2.empty:
             
             # 1. Gràfic de Causes (Combinat dels anys seleccionats)
-            st.subheader(f"Distribució de Causes Mediate per a {any_causa_mediate}")
+            st.subheader(f"Distribució de Causes per a {any_causa_mediate}")
             
             df_agg_filtrat = df_seccio_2['Descripcio_causa_mediata'].value_counts().reset_index()
             df_agg_filtrat.columns = ['Causa', 'Total_accidents']
