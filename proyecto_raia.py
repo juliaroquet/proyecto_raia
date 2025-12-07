@@ -382,12 +382,5 @@ def main():
 
     predecir_calle(modelo, df_calle, X.columns, codificadores)
 
-    # Opción GridSearch
-    usar_grid = input("\n¿Ejecutar GridSearch? (s/n): ").lower()
-    if usar_grid == "s":
-        best_model = ejecutar_gridsearch(X, y)
-        print("Accuracy total con best model:", best_model.score(X, y))
-
-
 if __name__ == "__main__":
     main()
