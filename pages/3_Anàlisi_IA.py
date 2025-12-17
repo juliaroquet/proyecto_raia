@@ -3,9 +3,62 @@ import pandas as pd
 import os
 import re
 from collections import Counter
+import requests
+from difflib import get_close_matches
+import unicodedata
+
+FASTAPI_URL = "http://localhost:8000"   # o la URL donde tengas FastAPI corriendo
+
+def normalize_text_advanced(text):
+    """
+    Normalitza i neteja el text d'entrada:
+    1. Minúscules i eliminació d'espais.
+    2. Eliminació d'accents (diacrítics).
+    3. Eliminació de signes de puntuació.
+    4. Eliminació de tipus de via i preposicions comunes.
+    """
+    if not isinstance(text, str):
+        return ""
+
+    text = text.lower().strip()
+
+    # 1. Normalització d'Unicode (treu accents i diacrítics: 'aragó' -> 'arago')
+    text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+
+    # 2. Neteja de caràcters i signes
+    text = text.replace('.', ' ').replace('-', ' ').replace("'", ' ')
+    
+    # Llista de tokens de tipus de via i preposicions a ignorar
+    tokens_a_ignorar = [
+        "carrer", "c", "avinguda", "av", "passeig", "pg", "ronda", "placa", "pl",
+        "via", "rambla", "travessera", "ctra",
+        "de les", "del", "de la", "de l", "dels", "de", "la", "el", "els", "les", "i"
+    ]
+    
+    # 3. Eliminació de tokens
+    tokens = []
+    for token in text.split():
+        if token not in tokens_a_ignorar:
+            tokens.append(token)
+
+    return ' '.join(tokens).strip()
+
+# Exemple: 'Prediu la causa per Av. Aragó' -> 'prediu causa arago'
+# Exemple: 'AVINGUDA DE SARRIÀ' -> 'sarria'
+
+def predict_calle_via_api(calle: str):
+    """Llama al endpoint FastAPI /predict_calle."""
+    try:
+        resp = requests.post(
+            f"{FASTAPI_URL}/predict_calle",
+            json={"nombre": calle}
+        )
+        return resp.json()
+    except Exception as e:
+        return {"error": f"Error connectant amb el servidor FastAPI: {e}"}
+
 
 # --- Configuració de la Pàgina ---
-# S'ha eliminat el paràmetre 'color' ja que no és vàlid per a st.set_page_config
 st.set_page_config(page_title="Analista de Dades d'Accidents", layout="wide")
 
 # 💅 Estil més "Professional/Analític" amb contrast millorat
@@ -105,8 +158,52 @@ if "messages" not in st.session_state:
         }
     ]
 
-
 # --- 3. Funció de Lògica de Resposta ---
+
+def detectar_carrer_ontologic(text, df):
+    """
+    Detecta noms de carrer usant la normalització avançada i fuzzy matching.
+    Ara aïlla el nom del carrer del soroll de la pregunta.
+    """
+    if "Nom_carrer" not in df.columns:
+        return None
+
+    # 1. Normalitzem el text de l'usuari (retorna 'prediu causa problable a arago')
+    text_normalitzat_complet = normalize_text_advanced(text)
+
+    if not text_normalitzat_complet:
+        return None
+        
+    # NOU PAS CLAU: Aïllem només la part final del text (els últims 4 mots) per a la comparació fuzzy.
+    text_a_comparar = ' '.join(text_normalitzat_complet.split()[-4:])
+
+
+    # Obtenim la llista de noms ORIGINALS i NORMALITZATS del dataset
+    carrers_originals = df["Nom_carrer"].dropna().unique().tolist()
+    # Aquesta llista idealment només s'hauria de calcular una vegada, fora de la funció.
+    carrers_normalitzats = [normalize_text_advanced(c) for c in carrers_originals] 
+    
+    # 1. Intent de Coincidència amb les últimes 4 paraules
+    match = get_close_matches(text_a_comparar, carrers_normalitzats, n=1, cutoff=0.7)
+
+    if match:
+        # Trobem l'índex del nom normalitzat que ha coincidit
+        index = carrers_normalitzats.index(match[0])
+        # Retornem el nom ORIGINAL i correcte del dataset
+        return carrers_originals[index]
+
+    # 2. Intent de Coincidència de paraula única (per si només es diu "Diagonal")
+    # Si la primera cerca falla, intentem buscar un match només amb el darrer mot
+    if len(text_a_comparar.split()) > 1:
+        text_darrer_mot = text_a_comparar.split()[-1]
+        
+        match_ultim = get_close_matches(text_darrer_mot, carrers_normalitzats, n=1, cutoff=0.7)
+        if match_ultim:
+            index = carrers_normalitzats.index(match_ultim[0])
+            return carrers_originals[index]
+
+    return None
+
 
 def analitzar_pregunta(user_text, df):
     """Analitza el text de l'usuari i retorna una resposta basada en les dades."""
@@ -163,7 +260,7 @@ def analitzar_pregunta(user_text, df):
         else:
             resposta = f"No s'ha trobat la columna '{COL_DISTRICTE}' per analitzar per districte."
 
-   # 3.3 Preguntes sobre Causes
+ # 3.3 Preguntes sobre Causes
     elif any(keyword in user_text for keyword in ["causa més", "causa mes", "motiu principal", "causes mes frequents"]):
         if COL_CAUSA not in df.columns:
             resposta = f"No s'ha trobat la columna '{COL_CAUSA}' per analitzar les causes."
@@ -187,9 +284,6 @@ def analitzar_pregunta(user_text, df):
                 "Les **3 causes mediates més freqüents** dels accidents són:\n\n"
                 + "\n".join(linies)
             )
-
-
-
     # 3.4 Anàlisi Específica (e.g., Accidents en un any concret)
     elif (any(c in user_text for c in ['accidents', 'casos', 'sinistres']) and 
           re.search(r'\b\d{4}\b', user_text)):
@@ -206,9 +300,45 @@ def analitzar_pregunta(user_text, df):
                 resposta = f"No es van trobar accidents registrats per a l'any **{any_trobat}** en les dades disponibles."
         else:
             resposta = f"No puc filtrar per any perquè falta la columna '{COL_ANY}'."
+    
+    # 3.5 Predicció IA segons una calle (integració FastAPI)
+    if any(word in user_text for word in ["prediu", "predicció", "causa probable", "prediccio"]):
+        
+        # 1) Intent simple amb regex: carrer X
+        match = re.search(r"(carrer|avinguda|av\.?|passeig|pg\.?|via|ronda|plaça|travessera)\s+([\w\s\-]+)", user_text)
+        
+        if match:
+            carrer_detectat = match.group(0)
+        else:
+            # 2) Mètode robust: fuzzy matching contra tota la llista de carrers
+            carrer_detectat = detectar_carrer_ontologic(user_text, df)
+        
+        if not carrer_detectat:
+            return "No he pogut identificar cap carrer a la teva pregunta. Prova amb: 'Prediu la causa probable a Avinguda Diagonal'."
+
+        # Cridar a FastAPI
+        result = predict_calle_via_api(carrer_detectat)
+
+        if "error" in result:
+            return f"⚠️ Error en la predicció: {result['error']}"
+
+        pred = result.get("prediccion")
+        probas = result.get("probabilidades", {})
+
+        resposta = (
+            f"🔍 **Predicció IA per a _{carrer_detectat}_:**\n\n"
+            f"📌 **Causa més probable:** *{pred}*\n\n"
+            f"📊 **Probabilitats:**\n"
+        )
+
+        for causa, pct in probas.items():
+            resposta += f"- {causa}: {pct:.2%}\n"
+
+        return resposta
 
 
-    # 3.5 Resposta per Defecte
+
+    # 3.6 Resposta per Defecte
     else:
         # Utilitzar algunes paraules clau per donar una resposta útil
         if any(keyword in user_text for keyword in ["hola", "saluda", "bon dia"]):

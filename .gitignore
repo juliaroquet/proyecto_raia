@@ -1,0 +1,2 @@
+# Ignorar modelos grandes de ML que exceden el límite de GitHub (100 MB)
+model/random_forest.pkl

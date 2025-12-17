@@ -300,7 +300,7 @@ def predecir_calle(modelo, df_calle, X_columns, codificadores):
     for clase, pct in proba_dict.items():
         print(f"- {clase}: {pct}%")
 
-     # TOP 3 causas más probables
+   # TOP 3 causas más probables
     top_3 = sorted(
         proba_dict.items(),
         key=lambda x: x[1],
@@ -389,13 +389,6 @@ def main():
     print(f"✔ {len(df_calle)} registros encontrados en '{calle}'")
 
     predecir_calle(modelo, df_calle, X.columns, codificadores)
-
-    # Opción GridSearch
-    usar_grid = input("\n¿Ejecutar GridSearch? (s/n): ").lower()
-    if usar_grid == "s":
-        best_model = ejecutar_gridsearch(X, y)
-        print("Accuracy total con best model:", best_model.score(X, y))
-
 
 if __name__ == "__main__":
     main()

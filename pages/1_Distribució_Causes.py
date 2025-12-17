@@ -6,7 +6,7 @@ import plotly.express as px
 # --- Configuració de la Pàgina ---
 st.set_page_config(page_title="Distribució de Causes", layout="wide")
 
-# 💅 Estil CSS MILLORAT
+# 💅 Estil CSS MILLORAT (Es manté el mateix estil)
 st.markdown("""
     <style>
     /* Estil consistent amb el Dashboard: Nou fons no blanc (blau clar suau) */
@@ -65,9 +65,9 @@ st.markdown("""
 
 
 st.markdown('<h1 class="main-header">📊 Causes dels Accidents: Interacció i Distribució</h1>', unsafe_allow_html=True)
-st.markdown("Selecciona l'any (o 'Tots els Anys') de manera independent per a cada mètrica per analitzar la distribució de causes, els factors del conductor i els patrons temporals.")
+st.markdown("Selecciona l'any (o 'Tots els Anys') de manera independent per a cada mètrica per analitzar la distribució de causes, els punts calents i els patrons temporals.")
 
-# --- Variables Globals i Funció de Càrrega CORREGIDA ---
+# --- Variables Globals i Funció de Càrrega CORREGIDA (Es manté) ---
 DATA_FOLDER = "data"
 os.makedirs(DATA_FOLDER, exist_ok=True)
 
@@ -93,33 +93,28 @@ def carregar_csv_desde_carpeta():
             df = df.astype(str) # Forcem a string per evitar errors de tipus amb dades brutes
             dfs[arxiu] = df
         except Exception as e:
-            # En un entorn real, millor loguejar l'error
             st.error(f"❌ Error carregant {arxiu} amb ambdues codificacions (UTF-8 i Latin-1).")
             
     return dfs
 
-# --- UI de Càrrega d'Arxius ---
-# Recarregar les dades un cop s'han pujat arxius nous
+# --- UI de Càrrega d'Arxius i Preparació de Dades (Es manté) ---
 dfs = carregar_csv_desde_carpeta()
 
 uploaded_files = st.file_uploader("Afegeix nous CSV", type="csv", accept_multiple_files=True)
 if uploaded_files:
     for arxiu in uploaded_files:
-        # Guardar l'arxiu pujat localment
         with open(os.path.join(DATA_FOLDER, arxiu.name), "wb") as f:
             f.write(arxiu.getbuffer())
     st.success(f"S'han guardat {len(uploaded_files)} arxius CSV.")
-    # Forçar la recàrrega de les dades amb la nova funció
     st.cache_data.clear()
     dfs = carregar_csv_desde_carpeta() 
 
-# --- Funció de Filtratge General ---
+# --- Funció de Filtratge General (Es manté) ---
 def get_filtered_df(df_total, selected_year, column_name='Nk_Any'):
     """Retorna el DataFrame filtrat per l'any seleccionat o el total si es tria 'Tots els Anys'."""
     if selected_year == 'Tots els Anys':
         return df_total
     try:
-        # Assegurar que el tipus de l'any coincideix
         return df_total[df_total[column_name].astype(str) == str(selected_year)].copy()
     except Exception:
         return pd.DataFrame()
@@ -128,21 +123,16 @@ def get_filtered_df(df_total, selected_year, column_name='Nk_Any'):
 # --- Generació dels Gràfics ---
 if dfs:
     
-    # Concatenar totes les dades per a anàlisis totals
-    # Cal assegurar que la columna 'Nk_Any' existeix i és numèrica per a l'ordenació
     df_total = pd.concat(dfs.values(), ignore_index=True)
     
-    # Intentem convertir l'any a enter, si falla, el tractem com a string
+    # Conversió d'anys per a desplegables (es manté)
     try:
         if 'Nk_Any' in df_total.columns:
-             # Convertir a Int64 (amb NA) per a neteja i després a string per consistència en el filtrat
-             df_total['Nk_Any'] = pd.to_numeric(df_total['Nk_Any'], errors='coerce').astype('Int64').astype(str).str.replace('<NA>', 'NaN')
+              df_total['Nk_Any'] = pd.to_numeric(df_total['Nk_Any'], errors='coerce').astype('Int64').astype(str).str.replace('<NA>', 'NaN')
     except Exception:
-        pass # Si falla la conversió inicial, mantenim els anys com a strings purs
+        pass 
 
-    # Preparació d'anys per a desplegables
     if 'Nk_Any' in df_total.columns:
-        # Netejar i ordenar valors únics
         anys_disponibles = sorted([a for a in df_total['Nk_Any'].dropna().unique().tolist() if a.isdigit()], key=int)
         anys_opcions = ['Tots els Anys'] + anys_disponibles
     else:
@@ -151,7 +141,7 @@ if dfs:
         anys_opcions = ['Tots els Anys']
 
     # ----------------------------------------
-    # Secció 2: Distribució de Causes (Per Any Seleccionat)
+    # Secció 2: Distribució de Causes (Es manté)
     # ----------------------------------------
     st.header("Distribució de Causes")
     
@@ -164,19 +154,17 @@ if dfs:
 
     if 'Descripcio_causa_mediata' in df_total.columns:
         
-        # Selector d'any per a aquesta mètrica
         any_causa_mediate = st.selectbox(
             "Selecciona l'any per a la distribució de causes:",
             options=anys_opcions,
-            key='any_causa_mediate',
-            index=0 # Default a 'Tots els Anys'
+            key='any_causa_mediate_s2',
+            index=0 
         )
         
         df_seccio_2 = get_filtered_df(df_total, any_causa_mediate)
         
         if not df_seccio_2.empty:
             
-            # 1. Gràfic de Causes (Combinat dels anys seleccionats)
             st.subheader(f"Distribució de Causes per a {any_causa_mediate}")
             
             df_agg_filtrat = df_seccio_2['Descripcio_causa_mediata'].value_counts().reset_index()
@@ -191,18 +179,17 @@ if dfs:
                 color_discrete_sequence=px.colors.qualitative.Pastel
             )
             
-            # Forcem text de l'etiqueta fora del gràfic a color fosc
+            # Configuració del gràfic de pastís (es manté)
             fig_filtrat.update_traces(
                 textposition='outside', 
                 textinfo='percent+label', 
                 marker=dict(line=dict(color='#333333', width=1)),
-                textfont=dict(color='#000000') # <-- Font de les etiquetes exteriors a negre absolut
+                textfont=dict(color='#000000') 
             )
             
-            # Configuració del fons del gràfic a blanc i text a fosc
             fig_filtrat.update_layout(
                 height=600, 
-                font=dict(size=14, color='#000000'), # Títol i llegenda de la gràfica en NEGRE
+                font=dict(size=14, color='#000000'), 
                 title_x=0.5,
                 plot_bgcolor='white', 
                 paper_bgcolor='white'
@@ -215,99 +202,85 @@ if dfs:
     else:
         st.warning("El CSV combinat no té la columna 'Descripcio_causa_mediata' necessària per a aquesta anàlisi.")
 
+
     # ----------------------------------------
-    # Secció 3: Anàlisi de Causes Directes del Conductor (Per Any Seleccionat)
+    # Secció 3 (NOVA): Punts Calents de Sinistralitat (Top 10 Carrers)
     # ----------------------------------------
-    st.header("🔝 Top 10 Causes Directes del Conductor")
+    st.header("🔥 Top 10 Punts Calents de Sinistralitat (Carrers)")
     
     # RESUM DE LA SECCIÓ 3
     with st.expander("ℹ️ Què veig en aquest gràfic?"):
         st.markdown("""
-            Aquest gràfic de barres horitzontal mostra les 10 causes d'accident més freqüents directament atribuïdes al conductor. 
-            És útil per destacar els comportaments de conducció o les faltes immediates que desencadenen un major nombre de sinistres.
+            Aquesta és la mètrica més important per a l'acció. Mostra els **10 carrers o vies amb major concentració d'accidents** en el període seleccionat. 
+            Aquests són els punts calents on cal prioritzar les inversions en seguretat viària i campanyes de conscienciació.
         """)
     
-    COL_CAUSA_DIRECTA = 'Descripcio_causa_conductor'
+    COL_CARRER = 'Nom_carrer'
 
-    if COL_CAUSA_DIRECTA in df_total.columns:
+    if COL_CARRER in df_total.columns:
         
         # Selector d'any per a aquesta mètrica
-        any_causa_conductor = st.selectbox(
-            "Selecciona l'any per veure el Top 10 de causes del conductor:",
+        any_carrer = st.selectbox(
+            "Selecciona l'any per veure el Top 10 de carrers:",
             options=anys_opcions,
-            key='any_causa_conductor',
+            key='any_carrer',
             index=0 # Default a 'Tots els Anys'
         )
 
-        df_seccio_3 = get_filtered_df(df_total, any_causa_conductor)
+        df_seccio_3 = get_filtered_df(df_total, any_carrer)
+        
+        # Filtrem valors nuls o no especificats
+        EXCLUSIONS_CARRER = ['Desconegut', 'NULL', 'No consta', '', 'N/A', 'NO IDENTIFICADA']
+        df_carrers = df_seccio_3[
+            ~df_seccio_3[COL_CARRER].astype(str).str.strip().isin(EXCLUSIONS_CARRER)
+        ].copy()
 
-        if not df_seccio_3.empty:
-            # Filtrem valors nuls o no especificats com 'No consta'
-            df_causes_directes = df_seccio_3[df_seccio_3[COL_CAUSA_DIRECTA].astype(str).str.strip() != 'No consta'].copy()
+
+        if not df_carrers.empty:
             
-            if not df_causes_directes.empty:
-                # 1. Agregació (Top 10)
-                df_agg_causes = df_causes_directes[COL_CAUSA_DIRECTA].value_counts().nlargest(10).reset_index()
-                df_agg_causes.columns = ['Causa Directa', 'Total_Accidents']
+            # 1. Agregació (Top 10)
+            df_agg_carrers = df_carrers[COL_CARRER].value_counts().nlargest(10).reset_index()
+            df_agg_carrers.columns = ['Carrer', 'Total_Accidents']
 
-                # 2. Creació del Bar Chart
-                fig_directes = px.bar(
-                    df_agg_causes, 
-                    x='Total_Accidents', 
-                    y='Causa Directa',
-                    orientation='h',
-                    title=f"Les 10 Causes Més Comunes Atribuïdes al Conductor ({any_causa_conductor})",
-                    color='Total_Accidents', 
-                    text='Total_Accidents',
-                    color_continuous_scale=px.colors.sequential.Plasma
-                )
-                
-                # Configuració explícita per al text de les barres (Total d'accidents)
-                fig_directes.update_traces(
-                    texttemplate='%{text}',
-                    textposition='outside',
-                    marker_line_color='#333333',
-                    marker_line_width=1,
-                    textfont=dict(color='#000000') # <-- Forcem color NEGRE ABSOLUT pel text dels valors
-                )
-                
-                # Configuració del fons del gràfic a blanc i text a fosc
-                fig_directes.update_layout(
-                    height=500, 
-                    # Configuració Eix Y (Categoría)
-                    yaxis={
-                        'categoryorder':'total ascending', 
-                        'title': '', 
-                        'showgrid': True,                       
-                        'gridcolor': '#cccccc',                 
-                        'tickfont': {'color': '#000000'}, # NEGRE
-                        'title_font': {'color': '#000000'} # NEGRE
-                    }, 
-                    # Configuració Eix X (Valor)
-                    xaxis={
-                        'title': 'Nombre d\'Accidents',
-                        'showgrid': True,                       
-                        'gridcolor': '#cccccc',                 
-                        'tickfont': {'color': '#000000'}, # NEGRE
-                        'title_font': {'color': '#000000'} # NEGRE
-                    },
-                    font=dict(color='#000000'), # Títol principal de la gràfica en NEGRE
-                    coloraxis_showscale=False, # <-- Amaguem la barra de color
-                    plot_bgcolor='white', 
-                    paper_bgcolor='white'
-                )
-                
-                st.plotly_chart(fig_directes, use_container_width=True)
-            else:
-                 st.info(f"No hi ha dades de causa directa (sense 'No consta') per a l'any {any_causa_conductor}.")
+            # 2. Creació del Bar Chart (Horitzontal)
+            fig_carrers = px.bar(
+                df_agg_carrers, 
+                x='Total_Accidents', 
+                y='Carrer',
+                orientation='h',
+                title=f"Top 10 Carrers amb Més Accidents ({any_carrer})",
+                color='Total_Accidents', 
+                text='Total_Accidents',
+                color_continuous_scale=px.colors.sequential.Sunset # Escala que va de clar (baix) a fosc/vermell (alt)
+            )
+            
+            fig_carrers.update_traces(
+                texttemplate='%{text}',
+                textposition='outside',
+                marker_line_color='#333333',
+                marker_line_width=1,
+                textfont=dict(color='#000000') 
+            )
+            
+            fig_carrers.update_layout(
+                height=500, 
+                yaxis={'categoryorder':'total ascending', 'title': '', 'tickfont': {'color': '#000000'}, 'title_font': {'color': '#000000'}}, 
+                xaxis={'title': 'Nombre d\'Accidents', 'showgrid': True, 'gridcolor': '#cccccc', 'tickfont': {'color': '#000000'}, 'title_font': {'color': '#000000'}},
+                font=dict(color='#000000'), 
+                coloraxis_showscale=False, 
+                plot_bgcolor='white', 
+                paper_bgcolor='white'
+            )
+            
+            st.plotly_chart(fig_carrers, use_container_width=True)
         else:
-            st.info(f"No hi ha dades d'accidents per a l'any {any_causa_conductor}.")
+            st.info(f"No hi ha dades de carrers vàlides per a l'anàlisi per a l'any {any_carrer}.")
 
     else:
-        st.warning(f"El CSV combinat no té la columna '{COL_CAUSA_DIRECTA}' per a l'anàlisi de causes directes.")
-
+        st.warning(f"El CSV combinat no té la columna '{COL_CARRER}' per a l'anàlisi de punts calents.")
+    
     # ----------------------------------------
-    # Secció 4: Anàlisi Temporal (Heatmap - Per Any Seleccionat)
+    # Secció 4: Anàlisi Temporal (Heatmap - Es manté)
     # ----------------------------------------
     st.header("⏳ Distribució Temporal d'Accidents (Hora i Dia)")
     
@@ -323,7 +296,6 @@ if dfs:
 
     if COL_DIA in df_total.columns and COL_HORA in df_total.columns:
         
-        # Selector d'any per a aquesta mètrica
         any_heatmap = st.selectbox(
             "Selecciona l'any per veure el patró horari i diari:",
             options=anys_opcions,
@@ -335,23 +307,15 @@ if dfs:
 
         if not df_seccio_4.empty:
             
-            # Ordre correcte dels dies de la setmana per al gràfic
             DIES_ORDRE = ['Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte', 'Diumenge']
 
-            # 1. Agregació de dades
-            # Cal assegurar-se que la columna 'Hora_dia' és numèrica per a l'eix X
             df_seccio_4[COL_HORA] = pd.to_numeric(df_seccio_4[COL_HORA], errors='coerce').fillna(-1).astype(int).astype(str)
             df_temporal = df_seccio_4.groupby([COL_DIA, COL_HORA]).size().reset_index(name='Total_Accidents')
-
-            # Eliminar la fila on l'hora era NaN (convertida a -1 i ara a string '-1')
             df_temporal = df_temporal[df_temporal[COL_HORA] != '-1']
 
-
-            # 2. Assegurar l'ordre dels dies
             df_temporal[COL_DIA] = pd.Categorical(df_temporal[COL_DIA], categories=DIES_ORDRE, ordered=True)
             df_temporal = df_temporal.sort_values(COL_DIA)
             
-            # 3. Creació del Heatmap
             fig_temps = px.density_heatmap(
                 df_temporal, 
                 x=COL_HORA, 
@@ -360,38 +324,21 @@ if dfs:
                 title=f"Accidents per Hora del Dia i Dia de la Setmana ({any_heatmap})",
                 text_auto=True,
                 category_orders={COL_DIA: DIES_ORDRE}, 
-                color_continuous_scale=px.colors.sequential.Magenta # <-- MODIFICAT: Ús de la paleta 'Magenta'
+                color_continuous_scale=px.colors.sequential.Magenta 
             )
             
-            # Configuració del fons del gràfic a blanc, text a fosc i línies dels eixos a fosc
             fig_temps.update_layout(
                 height=600, 
-                # Forcem el color dels valors (ticks) i el TÍTOL de l'eix X a fosc
-                xaxis={
-                    'title': 'Hora del Dia (0-23)', 
-                    'tickmode': 'linear', 
-                    'showgrid': False, 
-                    'linecolor': '#333333',
-                    'tickfont': {'color': '#000000'}, # NEGRE
-                    'title_font': {'color': '#000000'} # NEGRE
-                },
-                # Forcem el color dels valors (ticks) i el TÍTOL de l'eix Y a fosc
-                yaxis={
-                    'title': 'Dia de la Setmana', 
-                    'showgrid': False, 
-                    'linecolor': '#333333',
-                    'tickfont': {'color': '#000000'}, # NEGRE
-                    'title_font': {'color': '#000000'} # NEGRE
-                },
-                # CORRECCIÓ FINAL DE LA LLEGIBILITAT DE LA BARRA DE COLOR
+                xaxis={'title': 'Hora del Dia (0-23)', 'tickmode': 'linear', 'showgrid': False, 'linecolor': '#333333', 'tickfont': {'color': '#000000'}, 'title_font': {'color': '#000000'}},
+                yaxis={'title': 'Dia de la Setmana', 'showgrid': False, 'linecolor': '#333333', 'tickfont': {'color': '#000000'}, 'title_font': {'color': '#000000'}},
                 coloraxis_colorbar=dict(
                     title=dict(
                         text="Total d'Accidents", 
-                        font={'color': '#000000'} # <-- Forcem el títol a negre absolut
+                        font={'color': '#000000'}
                     ),
-                    tickfont={'color': '#000000'}   # <-- Forcem els números de l'escala de colors a negre absolut
+                    tickfont={'color': '#000000'}
                 ),
-                font=dict(color='#000000'), # Títol principal del gràfic i text general en NEGRE
+                font=dict(color='#000000'),
                 plot_bgcolor='white', 
                 paper_bgcolor='white'
             )
