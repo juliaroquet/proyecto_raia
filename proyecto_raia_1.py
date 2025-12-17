@@ -183,14 +183,27 @@ else:
         st.metric(label="Anys en l'Anàlisi", value=anys_coberts, delta=anys_min_max)
         
     with col3:
-        # Calcular la causa més freqüent
-        causa_mes_freq = "No Disponible"
-        if 'Descripcio_causa_mediata' in df_filtrat.columns:
-            data_filtrada = df_filtrat[df_filtrat['Descripcio_causa_mediata'].astype(str).str.strip() != '']
-            if not data_filtrada.empty:
-                causa_mes_freq = data_filtrada['Descripcio_causa_mediata'].mode()[0]
-            
-        st.metric(label="Causa Més Freqüent", value=causa_mes_freq)
+       # Calcular les 3 causes més freqüents
+        causes_mes_freq = "No Disponible"
+
+if 'Descripcio_causa_mediata' in df_filtrat.columns:
+    data_filtrada = df_filtrat[
+        df_filtrat['Descripcio_causa_mediata'].astype(str).str.strip() != ''
+    ]
+
+    if not data_filtrada.empty:
+        top_3 = (
+            data_filtrada['Descripcio_causa_mediata']
+            .value_counts()
+            .head(3)
+            .index
+            .tolist()
+        )
+
+        causes_mes_freq = " | ".join(top_3)
+
+    st.metric(label="3 Causes Més Freqüents", value=causes_mes_freq)
+
         
     
     st.markdown("---")
