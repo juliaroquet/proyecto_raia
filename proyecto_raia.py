@@ -300,8 +300,16 @@ def predecir_calle(modelo, df_calle, X_columns, codificadores):
     for clase, pct in proba_dict.items():
         print(f"- {clase}: {pct}%")
 
-    causa_top = max(proba_dict, key=proba_dict.get)
-    print(f"\n🎯 Causa MÁS probable: {causa_top} ({proba_dict[causa_top]}%)")
+     # TOP 3 causas más probables
+    top_3 = sorted(
+        proba_dict.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:3]
+
+    print("\n TOP 3 causas más probables:")
+    for i, (causa, prob) in enumerate(top_3, start=1):
+        print(f"{i}. {causa} ({prob}%)")
 
 
 # ==========================================================

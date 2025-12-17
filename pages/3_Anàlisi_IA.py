@@ -163,23 +163,32 @@ def analitzar_pregunta(user_text, df):
         else:
             resposta = f"No s'ha trobat la columna '{COL_DISTRICTE}' per analitzar per districte."
 
-    # 3.3 Preguntes sobre Causes
-    elif any(keyword in user_text for keyword in ["causa més", "causa mes", "motiu principal"]):
-        if COL_CAUSA in df.columns:
-            # Neteja de dades: Ignorar valors buits
-            data = df[df[COL_CAUSA].notna() & (df[COL_CAUSA].str.strip() != '')]
-            
-            if data.empty:
-                resposta = "No hi ha dades de causes vàlides per a l'anàlisi."
-            else:
-                comptatge = data[COL_CAUSA].value_counts()
-                causa_clau = comptatge.index[0]
-                total_clau = comptatge.iloc[0]
-                percentatge = (total_clau / len(data)) * 100
-                
-                resposta = f"La **causa mediata més freqüent** dels accidents és: **'{causa_clau}'**, representant un **{percentatge:.2f}%** del total ({total_clau:,} casos)."
-        else:
+   # 3.3 Preguntes sobre Causes
+    elif any(keyword in user_text for keyword in ["causa més", "causa mes", "motiu principal", "causes mes frequents"]):
+        if COL_CAUSA not in df.columns:
             resposta = f"No s'ha trobat la columna '{COL_CAUSA}' per analitzar les causes."
+        else:
+            data = df[df[COL_CAUSA].notna() & (df[COL_CAUSA].str.strip() != '')]
+
+        if data.empty:
+            resposta = "No hi ha dades de causes vàlides per a l'anàlisi."
+        else:
+            comptatge = data[COL_CAUSA].value_counts().head(3)
+            total = len(data)
+
+            linies = []
+            for i, (causa, count) in enumerate(comptatge.items(), start=1):
+                percentatge = (count / total) * 100
+                linies.append(
+                    f"**{i}. {causa}** → {count:,} casos ({percentatge:.2f}%)"
+                )
+
+            resposta = (
+                "Les **3 causes mediates més freqüents** dels accidents són:\n\n"
+                + "\n".join(linies)
+            )
+
+
 
     # 3.4 Anàlisi Específica (e.g., Accidents en un any concret)
     elif (any(c in user_text for c in ['accidents', 'casos', 'sinistres']) and 
