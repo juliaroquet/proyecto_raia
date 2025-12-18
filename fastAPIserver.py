@@ -7,19 +7,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from difflib import get_close_matches
 from ml_service import cargar_csvs, cargar_modelo, filtrar_calle, codificar_df
-from typing import List, Dict, Any, Optional # Necessari per als models de dades de Unity
+from typing import List, Dict, Any, Optional
 import unicodedata
-import pandas as pd # Necessari per processar les dades de Unity
+import pandas as pd
 import os
 import time
 
-# --- Configuració de l'API i Global ---
+# --- Configuració de l'API ---
 app = FastAPI(
     title="API Unificada: ML i Dades per a Unity",
-    version="1.0.0"
+    version="1.1.0"
 )
 
-# === CORS (OBLIGATORI) ===
+# === CORS ===
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],    
@@ -27,17 +27,16 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# --- Configuració de Dades per a Unity ---
+# --- Configuració de Directoris ---
 DATA_FOLDER = "data"
 UPLOAD_DIR = "uploaded_files"
-os.makedirs(UPLOAD_DIR, exist_ok=True) # Assegura que la carpeta d'uploads existeix
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # =======================================================
-# PART 1: Models Pydantic i Funcions de Càrrega (PER A UNITY)
+# PART 1: Models Pydantic
 # =======================================================
 
 class Accident(BaseModel):
-    """Model per a l'estructura d'un registre d'accident (sortida GET)."""
     id: int
     Nk_Any: Optional[int] = None
     Nom_districte: Optional[str] = None
@@ -46,202 +45,141 @@ class Accident(BaseModel):
     Longitud: float
     
 class NouAccident(BaseModel):
-    """Model per rebre un nou accident (entrada POST de dades estructurades)."""
     Nom_districte: str
     Nom_carrer: str
     Latitud: float
     Longitud: float
 
+class CalleInput(BaseModel):
+    nombre: str
+
+# =======================================================
+# PART 2: Càrrega Global del Model i Dades
+# =======================================================
+
+# Cargamos los datos y el modelo una sola vez al iniciar el servidor
+df = cargar_csvs()
+model, codificadores, columns = cargar_modelo()
+
 def carregar_dades_accidents_per_api(df_total_ml):
-    """Prepara les dades bàsiques (coords) per a ser servides a Unity."""
+    """ Prepara los datos de coordenadas para Unity """
     if df_total_ml.empty:
         return []
-
-    # Unificar noms de coordenades si cal
+    
+    # Unificar nombres de columnas de coordenadas
     if 'Latitud_WGS84' in df_total_ml.columns and 'Longitud_WGS84' in df_total_ml.columns:
         df_servei = df_total_ml.reindex(columns=['Nk_Any', 'Nom_districte', 'Nom_carrer', 'Latitud_WGS84', 'Longitud_WGS84']).dropna()
         df_servei.rename(columns={'Latitud_WGS84': 'Latitud', 'Longitud_WGS84': 'Longitud'}, inplace=True)
     elif 'Latitud' in df_total_ml.columns and 'Longitud' in df_total_ml.columns:
          df_servei = df_total_ml.reindex(columns=['Nk_Any', 'Nom_districte', 'Nom_carrer', 'Latitud', 'Longitud']).dropna()
     else:
-        print("ADVERTÈNCIA: Columnes de coordenades no trobades.")
         return []
     
-    # Crear un ID seqüencial
     df_servei['id'] = range(1, len(df_servei) + 1)
-    
-    # Limitem a 1000 registres (per una càrrega ràpida a Unity)
     return df_servei.head(1000).to_dict('records')
 
-
-# =======================================================
-# PART 2: Càrrega Global del Model i Dades
-# =======================================================
-
-# === Carga del modelo una vez (ML) ===
-df = cargar_csvs()
-model, codificadores, columns = cargar_modelo()
-
-# === Preparació de la DB de dades per Unity ===
 db_accidents_llista = carregar_dades_accidents_per_api(df)
-if not db_accidents_llista:
-    print(f"ADVERTÈNCIA: La llista de dades per a Unity està buida.")
-
 
 # =======================================================
-# PART 3: Funcions de Suport (PER A ML) (El teu codi original)
+# PART 3: Funcions de Suport ML
 # =======================================================
 
 def normalize_text_advanced(text):
-    """ Normalitza i neteja el text d'entrada. """
-    # ... El codi de la funció normalize_text_advanced és el teu codi original
-    if not isinstance(text, str):
-        return ""
+    if not isinstance(text, str): return ""
     text = text.lower().strip()
     text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
     text = text.replace('.', ' ').replace('-', ' ').replace("'", ' ')
-    tokens_a_ignorar = [
-        "carrer", "c", "avinguda", "av", "passeig", "pg", "ronda", "placa", "pl",
-        "via", "rambla", "travessera", "ctra",
-        "de les", "del", "de la", "de l", "dels", "de", "la", "el", "els", "les", "i"
-    ]
-    tokens = []
-    for token in text.split():
-        if token not in tokens_a_ignorar:
-            tokens.append(token)
-    return ' '.join(tokens).strip()
+    tokens_a_ignorar = ["carrer", "c", "avinguda", "av", "passeig", "pg", "ronda", "placa", "pl", "via", "rambla", "travessera", "ctra", "de les", "del", "de la", "de l", "dels", "de", "la", "el", "els", "les", "i"]
+    return ' '.join([t for t in text.split() if t not in tokens_a_ignorar]).strip()
 
 def fuzzy_find_street(df, calle):
-    """ Troba el nom de carrer més proper al dataset utilitzant la normalització avançada. """
-    # ... El codi de la funció fuzzy_find_street és el teu codi original
-    if "Nom_carrer" not in df.columns:
-        return None
-    calle_normalitzada = normalize_text_advanced(calle)
-    if not calle_normalitzada:
-        return None
+    if "Nom_carrer" not in df.columns: return None
+    calle_norm = normalize_text_advanced(calle)
+    if not calle_norm: return None
     carrers_originals = df["Nom_carrer"].dropna().unique().tolist()
-    carrers_normalitzats = [normalize_text_advanced(c) for c in carrers_originals]
-    match = get_close_matches(calle_normalitzada, carrers_normalitzats, n=1, cutoff=0.7)
-    if match:
-        index = carrers_normalitzats.index(match[0])
-        return carrers_originals[index]
-    return None
+    carrers_norm = [normalize_text_advanced(c) for c in carrers_originals]
+    match = get_close_matches(calle_norm, carrers_norm, n=1, cutoff=0.7)
+    return carrers_originals[carrers_norm.index(match[0])] if match else None
 
 # =======================================================
 # PART 4: Endpoints de Dades de Unity (Router 'data')
 # =======================================================
 
-data_router = APIRouter(
-    prefix="/data",
-    tags=["Unity-Data (GET/POST)"]
-)
+data_router = APIRouter(prefix="/data", tags=["Unity-Data"])
 
 @data_router.get("/accidents", response_model=List[Accident])
 def obtenir_accidents():
-    """
-    [GET] Retorna la llista de registres d'accidents (max. 1000) per a Unity.
-    """
     return db_accidents_llista
 
-@data_router.post("/afegirAccident", response_model=Dict[str, Any], status_code=201)
+@data_router.post("/afegirAccident", status_code=201)
 def afegir_accident(nou_accident: NouAccident):
-    """
-    [POST] Simula l'addició d'un nou registre d'accident (s'afegeix a la llista en memòria).
-    """
     global db_accidents_llista
-    
-    nou_id = int(time.time() * 1000) # ID ràpid i únic
-    
-    nou_registre = {
-        "id": nou_id,
+    registre = {
+        "id": int(time.time() * 1000),
         "Nk_Any": pd.Timestamp.now().year, 
         "Nom_districte": nou_accident.Nom_districte,
         "Nom_carrer": nou_accident.Nom_carrer,
         "Latitud": nou_accident.Latitud,
         "Longitud": nou_accident.Longitud,
     }
-    
-    db_accidents_llista.append(nou_registre)
-    
-    return {
-        "missatge": "Nou accident afegit correctament.",
-        "nou_accident": nou_registre
-    }
+    db_accidents_llista.append(registre)
+    return {"missatge": "Accident afegit", "accident": registre}
 
 @data_router.post("/upload_imatge")
 async def upload_imatge(file: UploadFile = File(...)):
-    """
-    [POST] Rep i guarda un arxiu (imatge) carregat pel client de Unity al directori 'uploaded_files/'.
-    """
     try:
         file_location = os.path.join(UPLOAD_DIR, file.filename)
-        
         content = await file.read()
-        
         if len(content) == 0:
              raise HTTPException(status_code=400, detail="L'arxiu rebut és buit.")
-
         with open(file_location, "wb") as buffer:
             buffer.write(content) 
-
-        return {
-            "missatge": f"Arxiu '{file.filename}' carregat correctament.",
-            "path_guardat": file_location,
-            "mida_bytes": len(content)
-        }
+        return {"missatge": f"Arxiu '{file.filename}' carregat.", "mida": len(content)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Hi ha hagut un error en la càrrega de l'arxiu: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # =======================================================
-# PART 5: Endpoints de Machine Learning (Sense Router)
+# PART 5: Endpoint Machine Learning (TOP 3 CAUSES)
 # =======================================================
 
-class CalleInput(BaseModel):
-    nombre: str
-
-@app.post("/predict_calle", tags=["Machine Learning (Predicció)"])
+@app.post("/predict_calle", tags=["Machine Learning"])
 def predict_calle(data: CalleInput):
-    """
-    [POST] Prediu la causa més probable d'un accident en un carrer (Endpoint ML existent).
-    """
     calle_final = data.nombre
     df_calle = filtrar_calle(df, calle_final)
 
+    # Fuzzy Matching si no hay registros exactos
     if df_calle.empty:
         calle_encontrada = fuzzy_find_street(df, data.nombre)
-        
         if not calle_encontrada:
-            return {"error": f"No hi ha registres per a '{data.nombre}' ni coincidències properes."}
-        
+            raise HTTPException(status_code=404, detail=f"No hay datos para '{data.nombre}'")
         calle_final = calle_encontrada
         df_calle = filtrar_calle(df, calle_final)
     
-    data.nombre = calle_final
-    
+    # Proceso de predicción
     df_encoded = codificar_df(df_calle, codificadores)
     X_input = df_encoded[columns]
+    probas = model.predict_proba(X_input)
 
-    pred = model.predict(X_input)
-    proba = model.predict_proba(X_input)
-
+    # Cálculo de Top 3
     etiquetas = codificadores["Descripcio_causa_mediata"]
-    proba_media = proba.mean(axis=0)
-    proba_dict = {etiquetas[i]: float(proba_media[i]) for i in range(len(etiquetas))}
-    top = max(proba_dict, key=proba_dict.get)
+    proba_media = probas.mean(axis=0)
+    proba_dict = {etiquetas[i]: float(round(proba_media[i] * 100, 2)) for i in range(len(etiquetas))}
+    
+    top_3_list = sorted(proba_dict.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_3_formatted = [{"causa": c, "probabilitat": p} for c, p in top_3_list]
 
     return {
-        "calle": data.nombre,
-        "prediccion": top,
-        "probabilidades": proba_dict
+        "calle": calle_final,
+        "top_3": top_3_formatted,
+        "probabilitats_completes": proba_dict
     }
 
 # =======================================================
-# PART 6: Inclusió de Routers i Endpoint Base
+# PART 6: Inicialització
 # =======================================================
 
 app.include_router(data_router)
 
-@app.get("/", tags=["Base"])
+@app.get("/")
 def root():
-    """Endpoint base de prova."""
-    return {"status": "FastAPI unificada per a ML i Dades Unity funcionant"}
+    return {"status": "API Unificada ONLINE", "mode": "ML + Unity Data"}

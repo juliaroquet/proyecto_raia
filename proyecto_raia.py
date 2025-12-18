@@ -125,27 +125,44 @@ print("\nClassification Report:")
 print(classification_report(y_test, y_pred))
 
 # ===============================================
-# 10. MATRIZ DE CONFUSIÓN MEJORADA
+# 10. MATRIZ DE CONFUSIÓN – AJUSTE FINAL DE MÁRGENES
 # ===============================================
 
 cm = confusion_matrix(y_test, y_pred)
-labels = df[target].astype("category").cat.categories  # Obtener etiquetas originales
+labels = df[target].astype("category").cat.categories 
 
-plt.figure(figsize=(10, 8))
+# Aumentamos el ancho a 16 para dar más aire a las etiquetas
+plt.figure(figsize=(16, 11)) 
+
 sns.heatmap(
     cm, 
     annot=True, 
     fmt='d', 
     cmap='Blues', 
     xticklabels=labels, 
-    yticklabels=labels
+    yticklabels=labels,
+    annot_kws={"size": 9}
 )
-plt.ylabel('Etiqueta Real')
-plt.xlabel('Etiqueta Predicha')
-plt.title("Matriz de Confusión – Random Forest")
-plt.xticks(rotation=45)
-plt.yticks(rotation=0)
-plt.tight_layout()
+
+plt.ylabel('Etiqueta Real', fontsize=12, fontweight='bold')
+plt.xlabel('Etiqueta Predicha', fontsize=12, fontweight='bold')
+plt.title("Matriz de Confusión – Random Forest", fontsize=14, pad=20)
+
+# Ajuste fino de las etiquetas del eje X
+plt.xticks(
+    rotation=45, 
+    ha='right', 
+    rotation_mode='anchor', 
+    fontsize=10
+)
+plt.yticks(fontsize=10)
+
+# El truco definitivo: Reservamos un 30% del espacio para el margen inferior
+plt.subplots_adjust(bottom=0.30, left=0.20) 
+
+# Si usas una versión moderna de Matplotlib, esto ayuda a que nada se solape
+# plt.tight_layout() # Opcional: puedes probar si mejora o empeora tras subplots_adjust
+
 plt.show()
 
 

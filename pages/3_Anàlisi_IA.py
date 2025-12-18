@@ -322,17 +322,19 @@ def analitzar_pregunta(user_text, df):
         if "error" in result:
             return f"⚠️ Error en la predicció: {result['error']}"
 
-        pred = result.get("prediccion")
-        probas = result.get("probabilidades", {})
+        top_3 = result.get("top_3", [])
 
+        if not top_3:
+            return f"No tinc dades suficients per predir a **{carrer_detectat}**."
+        
         resposta = (
             f"🔍 **Predicció IA per a _{carrer_detectat}_:**\n\n"
-            f"📌 **Causa més probable:** *{pred}*\n\n"
-            f"📊 **Probabilitats:**\n"
+            "Segons el model **Random Forest**, les 3 causes amb més probabilitat són:\n\n"
         )
 
-        for causa, pct in probas.items():
-            resposta += f"- {causa}: {pct:.2%}\n"
+        # Iterem sobre el top 3 per crear la llista numerada
+        for i, item in enumerate(top_3, 1):
+            resposta += f"{i}. **{item['causa']}** ({item['probabilitat']}%)\n"
 
         return resposta
 
